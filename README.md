@@ -259,7 +259,6 @@ multiprocessing module provides Pipe() function which returns a pair of connecti
 
 **Example**
 ```python
-import time
 from multiprocessing import Process, Pipe
 import time
 
@@ -301,3 +300,109 @@ Sender : Bye
 Received : Bye
 Process finished with exit code 0
 ```
+
+## Synchronization and Pooling of processes
+Process synchronization is a machanism by which, we prevent the processes (two or more) simultaneously execute some particular program segment known as critical section. 
+let's suppose you have a critical section **balance** and two processes **withdrawl** and **deposite** want to access it. 
+but if they simultaneously access the balance and modify it, data will be inconsistent due to which the user might either profit or lose extra money.So solution can be at a time one process execute on balance. for that python multiprocessing provides **Locks, Semaphores, Events, and Condition Variables** etc.
+
+![image](https://github.com/user-attachments/assets/685c9d09-a1c7-46b8-aaca-d5daa90934de)
+
+### Why inconsistancy Occured ?
+Race Condition : Race consition occured when two or more process try to modify the shared resource. since more than two or more processes are trying to modify it, now the final value of the shared data is depends on how context switching is happening. which is unpredictable.
+
+**Example** :
+```python
+from multiprocessing import Process, Value
+
+def withdrawl_amt(balance):
+    for _ in range(500):
+        balance.value -= 10
+
+def deposite_amt(balance):
+    for _ in range(500):
+        balance.value += 10
+
+if __name__ == "__main__":
+    Balance = Value("i", 10000)  # Shared memory variable
+
+    p1 = Process(target=deposite_amt, args=(Balance,))
+    p2 = Process(target=withdrawl_amt, args=(Balance,))
+    p1.start()
+    p2.start()
+    p1.join()
+    p2.join()
+
+    print(f"Final Balance: {Balance.value}")
+
+```
+**Output**
+```python
+First Run:
+Final Balance: 14960
+Second Run:
+Final Balance: 5590
+```
+
+As we can see the final output is not consistent, to prevent that lets see the options:
+
+**Lock():** Lock: Ensures only one process updates Balance at a time. lets see
+
+```python
+from multiprocessing import Process, Value, Lock
+
+def withdrawl_amt(balance, lock):
+    for _ in range(500):
+        with lock:
+            balance.value -= 5
+
+def deposite_amt(balance, lock):
+    for _ in range(500):
+        with lock:
+            balance.value += 10
+
+if __name__ == "__main__":
+    Balance = Value("i", 10000)  # Shared memory variable
+    lock = Lock()
+    p1 = Process(target=deposite_amt, args=(Balance,lock))
+    p2 = Process(target=withdrawl_amt, args=(Balance,lock))
+    p1.start()
+    p2.start()
+    p1.join()
+    p2.join()
+
+    print(f"Final Balance: {Balance.value}")
+```
+
+**Pooling:**
+To fully utilize all CPU cores, the multiprocessing module provides the **Pool** class, which manages a pool of worker processes. The Pool divides a large task into smaller subtasks and distributes them among the worker processes. Each process runs independently on a different core, contributing to efficient parallel execution.
+
+```python
+import time
+from multiprocessing import Pool, Process, Array
+import os
+
+
+def square(num):
+    time.sleep(1)
+    print(f"Task Perfromed by : {os.getpid()}")
+    return num * num
+
+if __name__ == "__main__":
+    nums = [1,2,3,4]
+    with Pool(3) as pool:
+        result = pool.map(square, nums)
+    print(f"Squred Numbers : {result}")
+```
+
+**Output**
+```python
+Task Perfromed by : 11999
+Task Perfromed by : 11998
+Task Perfromed by : 11997
+Task Perfromed by : 11999
+Squred Numbers : [1, 4, 9, 16]
+
+Process finished with exit code 0
+```
+* inside Pool(3), here 3 is max number of worker processes.
